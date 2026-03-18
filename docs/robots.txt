@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://thebrama0.github.io/Exportify-Playlist-Merger/sitemap.xml
