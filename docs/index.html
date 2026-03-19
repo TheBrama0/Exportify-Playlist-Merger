@@ -157,20 +157,20 @@
             <strong>📌 Before you start:</strong>
             <ul>
                 <li>Download the <strong>same playlist</strong> from both Exportify services:</li>
-                <li>🌐 <a href="https://exportify.app" target="_blank">exportify.app</a> – this will be your <strong>first file</strong> (File 1).</li>
-                <li>🌐 <a href="https://exportify.net" target="_blank">exportify.net</a> – this will be your <strong>second file</strong> (File 2).</li>
+                <li>🌐 <a href="https://exportify.app" target="_blank">exportify.app</a></li>
+                <li>🌐 <a href="https://exportify.net" target="_blank">exportify.net</a></li>
+                <li>Upload both files below – the tool will <strong>automatically detect</strong> which is which.</li>
                 <li>Make sure you export the identical playlist (same tracks) from both sites.</li>
-                <li>Do not rename the files; use them as downloaded.</li>
             </ul>
         </div>
 
         <div class="file-group">
-            <label>📂 File 1 (from exportify.app) – e.g., liked.csv</label>
+            <label>📂 File 1 (from either exportify.app or .net)</label>
             <input type="file" id="file1" accept=".csv">
         </div>
 
         <div class="file-group">
-            <label>📂 File 2 (from exportify.net) – e.g., Liked_Songs.csv</label>
+            <label>📂 File 2 (the other one)</label>
             <input type="file" id="file2" accept=".csv">
         </div>
 
@@ -214,9 +214,42 @@
                 parseCSV(file1),
                 parseCSV(file2)
             ]).then(([data1, data2]) => {
-                // Build lookup from file2 by Track URI
+                // Detect which file is from exportify.app and which from exportify.net
+                const columns1 = data1.length > 0 ? Object.keys(data1[0]) : [];
+                const columns2 = data2.length > 0 ? Object.keys(data2[0]) : [];
+
+                // Unique columns for exportify.app (file1 in original mapping)
+                const appColumns = ['Artist URI(s)', 'Album URI', 'Album Artist URI(s)', 'Album Artist Name(s)', 'Album Release Date', 'Album Image URL', 'Disc Number', 'Track Number', 'Track Preview URL', 'ISRC'];
+                // Unique columns for exportify.net (file2 in original mapping)
+                const netColumns = ['Duration (ms)', 'Genres', 'Record Label', 'Danceability', 'Energy', 'Key', 'Loudness', 'Mode', 'Speechiness', 'Acousticness', 'Instrumentalness', 'Liveness', 'Valence', 'Tempo', 'Time Signature', 'Release Date'];
+
+                const score1app = appColumns.filter(col => columns1.includes(col)).length;
+                const score1net = netColumns.filter(col => columns1.includes(col)).length;
+                const score2app = appColumns.filter(col => columns2.includes(col)).length;
+                const score2net = netColumns.filter(col => columns2.includes(col)).length;
+
+                // Decide: file with higher app score is the .app file
+                let appData, netData;
+                if (score1app > score2app) {
+                    appData = data1;
+                    netData = data2;
+                } else if (score2app > score1app) {
+                    appData = data2;
+                    netData = data1;
+                } else {
+                    // If scores are equal, fall back to net scores
+                    if (score1net > score2net) {
+                        netData = data1;
+                        appData = data2;
+                    } else {
+                        netData = data2;
+                        appData = data1;
+                    }
+                }
+
+                // Now build lookup from netData by Track URI
                 const lookup = {};
-                data2.forEach(row => {
+                netData.forEach(row => {
                     const uri = row['Track URI'];
                     if (uri) lookup[uri] = row;
                 });
@@ -261,78 +294,78 @@
 
                 const mergedRows = [];
 
-                // Process all rows from file1 (exportify.app)
-                data1.forEach(row1 => {
+                // Process all rows from appData (exportify.app)
+                appData.forEach(row1 => {
                     const uri = row1['Track URI'];
                     const row2 = lookup[uri] || {};
                     const merged = {};
 
                     merged['Track URI'] = uri;
 
-                    // Track Name: prefer file2, else file1
+                    // Track Name: prefer netData, else appData
                     merged['Track Name'] = coalesce(row2['Track Name'], row1['Track Name']);
 
-                    // Artist URI(s): only from file1
+                    // Artist URI(s): only from appData
                     merged['Artist URI(s)'] = row1['Artist URI(s)'] || '';
 
-                    // Artist Name(s): from file1 (not mapped to file2 in final example)
+                    // Artist Name(s): from appData (not mapped to netData in final example)
                     merged['Artist Name(s)'] = row1['Artist Name(s)'] || '';
 
-                    // Album URI: only from file1
+                    // Album URI: only from appData
                     merged['Album URI'] = row1['Album URI'] || '';
 
-                    // Album Name: prefer file2, else file1
+                    // Album Name: prefer netData, else appData
                     merged['Album Name'] = coalesce(row2['Album Name'], row1['Album Name']);
 
-                    // Album Artist URI(s): only from file1
+                    // Album Artist URI(s): only from appData
                     merged['Album Artist URI(s)'] = row1['Album Artist URI(s)'] || '';
 
-                    // Album Artist Name(s): only from file1
+                    // Album Artist Name(s): only from appData
                     merged['Album Artist Name(s)'] = row1['Album Artist Name(s)'] || '';
 
-                    // Album Release Date: only from file1
+                    // Album Release Date: only from appData
                     merged['Album Release Date'] = row1['Album Release Date'] || '';
 
-                    // Album Image URL: only from file1
+                    // Album Image URL: only from appData
                     merged['Album Image URL'] = row1['Album Image URL'] || '';
 
-                    // Disc Number: only from file1
+                    // Disc Number: only from appData
                     merged['Disc Number'] = row1['Disc Number'] || '';
 
-                    // Track Number: only from file1
+                    // Track Number: only from appData
                     merged['Track Number'] = row1['Track Number'] || '';
 
-                    // Track Duration (ms): prefer file2's Duration (ms), else file1's Track Duration (ms)
+                    // Track Duration (ms): prefer netData's Duration (ms), else appData's Track Duration (ms)
                     merged['Track Duration (ms)'] = coalesce(row2['Duration (ms)'], row1['Track Duration (ms)']);
 
-                    // Track Preview URL: only from file1
+                    // Track Preview URL: only from appData
                     merged['Track Preview URL'] = row1['Track Preview URL'] || '';
 
-                    // Explicit: prefer file2, else file1
+                    // Explicit: prefer netData, else appData
                     merged['Explicit'] = coalesce(row2['Explicit'], row1['Explicit']);
 
-                    // Popularity: prefer file2, else file1
+                    // Popularity: prefer netData, else appData
                     merged['Popularity'] = coalesce(row2['Popularity'], row1['Popularity']);
 
-                    // ISRC: only from file1
+                    // ISRC: only from appData
                     merged['ISRC'] = row1['ISRC'] || '';
 
-                    // Added By: prefer file2, else file1
+                    // Added By: prefer netData, else appData
                     merged['Added By'] = coalesce(row2['Added By'], row1['Added By']);
 
-                    // Added At: prefer file2, else file1
+                    // Added At: prefer netData, else appData
                     merged['Added At'] = coalesce(row2['Added At'], row1['Added At']);
 
-                    // Release Date: only from file2
+                    // Release Date: only from netData
                     merged['Release Date'] = row2['Release Date'] || '';
 
-                    // Genres: only from file2
+                    // Genres: only from netData
                     merged['Genres'] = row2['Genres'] || '';
 
-                    // Record Label: only from file2
+                    // Record Label: only from netData
                     merged['Record Label'] = row2['Record Label'] || '';
 
-                    // Audio features from file2
+                    // Audio features from netData
                     merged['Danceability'] = row2['Danceability'] || '';
                     merged['Energy'] = row2['Energy'] || '';
                     merged['Key'] = row2['Key'] || '';
@@ -349,10 +382,10 @@
                     mergedRows.push(merged);
                 });
 
-                // Include rows from file2 that are not in file1 (outer join)
-                data2.forEach(row2 => {
+                // Include rows from netData that are not in appData (outer join)
+                netData.forEach(row2 => {
                     const uri = row2['Track URI'];
-                    if (!data1.some(r => r['Track URI'] === uri)) {
+                    if (!appData.some(r => r['Track URI'] === uri)) {
                         const merged = {};
                         merged['Track URI'] = uri;
                         merged['Track Name'] = row2['Track Name'] || '';
